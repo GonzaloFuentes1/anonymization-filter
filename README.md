@@ -13,17 +13,19 @@ This repository provides tools to detect and anonymize Personally Identifiable I
 
 ```
 anonymization-filter/
+├── src/                        # Source code directory
+│   ├── dataset_filter_ID.py       # Regex-based anonymization for datasets
+│   ├── dataset_filter_nemo.py     # NeMo-based anonymization for datasets
+│   ├── text_filter_ID.py          # Regex-based anonymization for text
+│   ├── text_filter_nemo.py        # NeMo-based anonymization for text
+│   └── benchmark.py               # Benchmarking module
 ├── resultados_benchmark/       # Benchmark results and plots
 ├── .flake8                     # Linting rules
 ├── .gitignore
 ├── .pre-commit-config.yaml    # Pre-commit hooks
 ├── LICENSE
-├── README.md                   # This file
+├── README.md                   # Project overview and usage
 ├── requirements.txt           # Python dependencies
-├── dataset_filter_ID.py       # Regex-based anonymization for datasets
-├── dataset_filter_nemo.py     # NeMo-based anonymization for datasets
-├── text_filter_ID.py          # Regex-based anonymization for text
-├── text_filter_nemo.py        # NeMo-based anonymization for text
 ```
 
 ## Installation
