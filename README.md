@@ -1,97 +1,105 @@
-# Anonymization Filter
+# Latamgpt – Anonymization Filter
 
-This repository provides tools to detect and anonymize Personally Identifiable Information (PII) in text data using both regex-based methods and NVIDIA's NeMo-Curator library.
+Utilities for **batch anonymization** of large-scale text datasets (Spanish, Portuguese, English).  
+Combines [Microsoft Presidio] PII detection with custom regular-expressions for Latin-American IDs.
 
-## Features
+---
 
-- Regex-based anonymization for Latin American identifiers (RUT, CUIT, CURP, etc.).
-- Transformer-based anonymization using NeMo-Curator (CPU or CUDA).
-- Parallel processing using Dask for large datasets.
-- Benchmarking tools to compare performance across configurations.
-
-## File Overview
+## 📁 Folder layout
 
 ```
-anonymization-filter/
-├── src/                        # Source code directory
-│   ├── dataset_filter_ID.py       # Regex-based anonymization for datasets
-│   ├── dataset_filter_nemo.py     # NeMo-based anonymization for datasets
-│   ├── text_filter_ID.py          # Regex-based anonymization for text
-│   ├── text_filter_nemo.py        # NeMo-based anonymization for text
-│   └── benchmark.py               # Benchmarking module
-├── resultados_benchmark/       # Benchmark results and plots
-├── .flake8                     # Linting rules
-├── .gitignore
-├── .pre-commit-config.yaml    # Pre-commit hooks
-├── LICENSE
-├── README.md                   # Project overview and usage
-├── requirements.txt           # Python dependencies
+Latamgpt/
+├─ anonymization-filter/
+│  ├─ requirements.txt
+│  ├─ README.md             ← this file
+│  ├─ .flake8  ·  .gitignore  ·  .pre-commit-config.yaml
+│  └─ src/
+│     ├─ filter_ID.py           # Only IDs  → <ID>
+│     ├─ filter_presidio.py     # Only PII (e-mail, IP …)
+│     └─ full_anon.py           # Full pipeline (PII + IDs)
+└─ …
 ```
 
-## Installation
+---
+
+## 1 · Requirements
+
+| Package                    | Min version | Notes                             |
+| -------------------------- | ----------- | --------------------------------- |
+| Python                     | 3.9         | tested 3.9 – 3.11                 |
+| `datasets`                 | 2.19        | `load_from_disk` / `save_to_disk` |
+| `presidio-analyzer`        | 2.2         | PII detection                     |
+| `presidio-anonymizer`      | 2.2         | PII masking                       |
+| `spacy` + `en_core_web_lg` | 3.x         | language model for Presidio       |
+| `tqdm`                     | —           | progress bars                     |
 
 ```bash
 pip install -r requirements.txt
+python -m spacy download en_core_web_lg
 ```
 
-To install `nemo-curator`, clone and install it manually (if not on PyPI):
+---
+
+## 2 · Scripts
+
+### 2.1 `filter_ID.py`
+
+_Replaces Latin-American identifiers (RUT, CURP, CPF, CUIT, …) with `<ID>`._
 
 ```bash
-pip install --extra-index-url https://pypi.nvidia.com nemo-curator[all]
+python src/filter_ID.py   --input_path  /data/ds_orig   --output_path /data/ds_ids   --column      texto
 ```
 
-## Usage
+Use `--demo` to run a built-in test set.
 
-### Regex-Based Anonymization
+---
 
-Text file:
+### 2.2 `filter_presidio.py`
+
+_PII anonymization only (e-mail, IP, phone, credit-card, …)._
 
 ```bash
-python text_filter_ID.py
+python src/filter_presidio.py   --input_path  /data/ds_orig   --output_path /data/ds_pii   --text_column mensaje   --entities    EMAIL_ADDRESS,IP_ADDRESS,PHONE_NUMBER,CREDIT_CARD   --batch_size  32   --num_proc    8
 ```
 
-Dataset (Hugging Face):
+`--text_column` accepts any single column name.
+
+---
+
+### 2.3 `full_anon.py`
+
+**One-shot pipeline**:
+
+1. Presidio → `<EMAIL_ADDRESS>`, `<PHONE_NUMBER>`, …
+2. Regex IDs → `<ID>`
 
 ```bash
-python dataset_filter_ID.py \
-  --input_path /ruta/al/dataset/original \
-  --output_path /ruta/al/dataset/anonimizado \
-  --column text
-
+python src/full_anon.py   --input_path  /data/ds_orig   --output_path /data/ds_anon   --column      texto   --batch_size  64   --num_proc    8
 ```
 
-### NeMo-Based Anonymization
-
-Text file:
+#### Quick demo
 
 ```bash
-python text_filter_nemo.py
+python src/full_anon.py --demo --output_path ./demo_ds
 ```
 
-Dataset with full configuration:
+Creates a 15-row sample containing RUT, CURP, e-mail, phone, IP and credit-card examples.
 
-```bash
-python dataset_filter_nemo.py \
-  --input_path input/path \
-  --output_path output/path \
-  --text_column texto \
-  --chunk_size 10000 \
-  --n_workers 32 \
-  --threads_per_worker 1 \
-  --device cpu \
-  --supported_entities EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,IP_ADDRESS
+Load the result:
+
+```python
+from datasets import load_from_disk
+ds = load_from_disk("./demo_ds")
+print(ds[:]["texto"])
 ```
 
-## Benchmarking
+---
 
-Run benchmarking suite:
+## 3 · Common flags
 
-```bash
-python benchmark.py
-```
-
-This tests anonymization speed for different worker/thread combinations and chunk sizes. Plots and CSV summaries are stored in `resultados_benchmark/`.
-
-## License
-
-This project is licensed under the MIT License.
+| Flag             | Description                        | Default  |
+| ---------------- | ---------------------------------- | -------- |
+| `--batch_size`   | Batch size for `datasets.map`      | 64       |
+| `--num_proc`     | Parallel workers (multiprocessing) | CPU // 2 |
+| `--max_text_len` | Skip texts longer than this length | 100 000  |
+| `--language`     | Language code passed to Presidio   | `en`     |
